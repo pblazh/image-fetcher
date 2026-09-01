@@ -33,5 +33,5 @@ func makeDir(dir string) error {
 	if errors.Is(err, os.ErrNotExist) {
 		err = os.MkdirAll(dir, 0o777)
 	}
-	return nil
+	return err
 }

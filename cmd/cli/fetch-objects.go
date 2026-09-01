@@ -19,7 +19,12 @@ func FetchObjects(ctx context.Context, bkt *storage.BucketHandle, requests <-cha
 			log.Println(fmt.Errorf("failed to create a reader for %s/%s, %w", req.Id, req.Name, err))
 			break
 		}
-		defer r.Close()
+
+		defer func() {
+			if r.Close() != nil {
+				log.Println(err)
+			}
+		}()
 
 		fileName := makeFileName(req.Out, req.Id, req.Name)
 		file, err := os.Create(fileName)
