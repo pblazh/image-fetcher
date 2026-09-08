@@ -11,11 +11,6 @@ import (
 	"google.golang.org/api/iterator"
 )
 
-var (
-	IDS_WORKERS  = 5
-	FILE_WORKERS = 3
-)
-
 type Request struct {
 	Id   string
 	Name string
@@ -24,11 +19,10 @@ type Request struct {
 
 func ListObjects(ctx context.Context, bkt *storage.BucketHandle, out string, id string, requests chan Request) {
 	objs := bkt.Objects(ctx, &storage.Query{MatchGlob: id + "_*_*"})
-	// objs := bkt.Objects(ctx, &storage.Query{MatchGlob: id + "_*_SELFIE"})
 
 	for {
 		obj, err := objs.Next()
-		if err == iterator.Done {
+		if err == iterator.Done || err == context.Canceled {
 			break
 		}
 
@@ -43,31 +37,38 @@ func ListObjects(ctx context.Context, bkt *storage.BucketHandle, out string, id 
 	close(requests)
 }
 
-func fetchForIds(ctx context.Context, bucket string, out string, ids <-chan string) {
+func fetchForIds(ctx context.Context, cfg Config, ids <-chan string) {
 	client, err := storage.NewClient(ctx)
+	if err == context.Canceled {
+		return
+	}
+
 	if err != nil {
 		log.Println(err)
 	}
 
-	bkt := client.Bucket(bucket)
+	bkt := client.Bucket(cfg.Bucket)
 
 	for id := range ids {
-		fetchForId(ctx, bkt, out, id)
+		fetchForId(ctx, bkt, cfg, id)
 	}
 }
 
-func fetchForId(ctx context.Context, bkt *storage.BucketHandle, out string, id string) {
-	err := makeDir(path.Join(out, id))
+func fetchForId(ctx context.Context, bkt *storage.BucketHandle, config Config, id string) {
+	err := makeDir(path.Join(config.Out, id))
+	if err == context.Canceled {
+		return
+	}
 	if err != nil {
 		log.Println(err)
 	}
 
 	requests := make(chan Request)
-	go ListObjects(ctx, bkt, out, id, requests)
+	go ListObjects(ctx, bkt, config.Out, id, requests)
 
 	var wg sync.WaitGroup
 
-	for range FILE_WORKERS {
+	for range config.FileWorkers {
 		wg.Go(func() {
 			FetchObjects(ctx, bkt, requests)
 		})

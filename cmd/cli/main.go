@@ -1,54 +1,37 @@
 package main
 
 import (
-	"bufio"
 	"context"
-	"flag"
-	"log"
 	"os"
-	"path"
+	"os/signal"
 	"sync"
 )
 
-var BUCKET = "revolut-prod-apps_vision-scans"
-
 func main() {
-	var out string
-	flag.StringVar(&out, "out", ".", "out folder")
+	var config Config
+	config.Parse()
 
-	var bucket string
-	flag.StringVar(&bucket, "bucket", BUCKET, "bucket name")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	flag.Parse()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
 
-	pwd, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-	out = path.Join(pwd, out)
+	go func(signals chan os.Signal, cancel context.CancelFunc) {
+		<-signals
+		cancel()
+	}(signals, cancel)
 
-	ctx := context.Background()
-	ids := make(chan string)
+	idsChan := make(chan string)
 
-	go ListIds(ctx, ids)
+	go ListIds(ctx, idsChan)
 
 	var wg sync.WaitGroup
-	for range IDS_WORKERS {
+	for range config.IdWorkers {
 		wg.Go(func() {
-			fetchForIds(ctx, bucket, out, ids)
+			fetchForIds(ctx, config, idsChan)
 		})
 	}
 
 	wg.Wait()
-}
-
-func ListIds(ctx context.Context, ch chan string) {
-	scaner := bufio.NewScanner(os.Stdin)
-	for scaner.Scan() {
-		id := scaner.Text()
-		ch <- id
-		log.Println(id)
-	}
-
-	close(ch)
 }

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
+	"context"
 	"errors"
+	"log"
 	"os"
 	"path"
 	"regexp"
@@ -34,4 +37,19 @@ func makeDir(dir string) error {
 		err = os.MkdirAll(dir, 0o777)
 	}
 	return err
+}
+
+func ListIds(ctx context.Context, ch chan string) {
+	scaner := bufio.NewScanner(os.Stdin)
+loop:
+	for scaner.Scan() {
+		id := scaner.Text()
+		select {
+		case ch <- id:
+			log.Println(id)
+		case <-ctx.Done():
+			break loop
+		}
+	}
+	close(ch)
 }
