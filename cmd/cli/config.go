@@ -8,9 +8,9 @@ import (
 )
 
 type Config struct {
-	Bucket string
-	Out    string
-
+	Bucket      string
+	Out         string
+	Mask        string
 	IdWorkers   int
 	FileWorkers int
 }
@@ -18,6 +18,7 @@ type Config struct {
 func (cfg *Config) Parse() {
 	flag.StringVar(&cfg.Out, "out", "out", "out folder")
 	flag.StringVar(&cfg.Bucket, "bucket", "revolut-prod-apps_vision-scans", "bucket name")
+	flag.StringVar(&cfg.Mask, "mask", "_*_*", "file mask")
 	flag.IntVar(&cfg.IdWorkers, "idWorkers", 5, "ids workers")
 	flag.IntVar(&cfg.FileWorkers, "fileWorkers", 3, "file workers")
 

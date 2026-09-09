@@ -19,6 +19,7 @@ func FetchObjects(ctx context.Context, bkt *storage.BucketHandle, requests <-cha
 		if errors.Is(err, context.Canceled) {
 			break
 		}
+
 		if err != nil {
 			log.Println(fmt.Errorf("failed to create a reader for %s/%s, %w", req.Id, req.Name, err))
 			break
@@ -31,19 +32,19 @@ func FetchObjects(ctx context.Context, bkt *storage.BucketHandle, requests <-cha
 			}
 		}()
 
-		fileName := makeFileName(req.Out, req.Id, req.Name)
-		file, err := os.Create(fileName)
+		file, err := os.Create(req.FileName)
+
 		if errors.Is(err, context.Canceled) {
 			break
 		}
 
 		if err != nil {
-			log.Println(fmt.Errorf("failed to create %s, %w", fileName, err))
+			log.Println(fmt.Errorf("failed to create %s, %w", req.FileName, err))
 		}
 
 		if _, err := io.Copy(file, r); err != nil {
 			if err != context.Canceled {
-				log.Println(fmt.Errorf("failed to write %s, %w", fileName, err))
+				log.Println(fmt.Errorf("failed to write %s, %w", req.FileName, err))
 			}
 		}
 	}

@@ -15,56 +15,63 @@ type Request struct {
 	Id   string
 	Name string
 	Out  string
+
+	FileName string // := makeFileName(req.Out, req.Id, req.Name)
 }
 
-func ListObjects(ctx context.Context, bkt *storage.BucketHandle, out string, id string, requests chan Request) {
-	objs := bkt.Objects(ctx, &storage.Query{MatchGlob: id + "_*_*"})
+func ListObjects(ctx context.Context, config Config, bkt *storage.BucketHandle, id string, requests chan<- Request) {
+	objects := bkt.Objects(ctx, &storage.Query{MatchGlob: id + config.Mask})
+	defer close(requests)
 
 	for {
-		obj, err := objs.Next()
+		obj, err := objects.Next()
 		if err == iterator.Done || err == context.Canceled {
 			break
 		}
 
 		if err != nil {
 			log.Println(fmt.Errorf("failed to list objects, %w", err))
-			log.Println(err)
+			break
 		}
 
-		requests <- Request{Id: id, Name: obj.Name, Out: out}
+		requests <- Request{
+			Id: id, Name: obj.Name, Out: config.Out,
+			FileName: makeFileName(config.Out, id, obj.Name),
+		}
 	}
-
-	close(requests)
 }
 
-func fetchForIds(ctx context.Context, cfg Config, ids <-chan string) {
+func fetchForIds(ctx context.Context, config Config, ids <-chan string) {
 	client, err := storage.NewClient(ctx)
 	if err == context.Canceled {
 		return
 	}
 
 	if err != nil {
-		log.Println(err)
+		log.Println(fmt.Errorf("failed to create a client, %w", err))
+		return
 	}
 
-	bkt := client.Bucket(cfg.Bucket)
+	bucket := client.Bucket(config.Bucket)
 
 	for id := range ids {
-		fetchForId(ctx, bkt, cfg, id)
+		fetchForId(ctx, config, bucket, id)
 	}
 }
 
-func fetchForId(ctx context.Context, bkt *storage.BucketHandle, config Config, id string) {
+func fetchForId(ctx context.Context, config Config, bkt *storage.BucketHandle, id string) {
 	err := makeDir(path.Join(config.Out, id))
 	if err == context.Canceled {
 		return
 	}
+
 	if err != nil {
-		log.Println(err)
+		log.Println(fmt.Errorf("failed to create a dir, %w", err))
+		return
 	}
 
 	requests := make(chan Request)
-	go ListObjects(ctx, bkt, config.Out, id, requests)
+	go ListObjects(ctx, config, bkt, id, requests)
 
 	var wg sync.WaitGroup
 
