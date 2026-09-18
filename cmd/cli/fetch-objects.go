@@ -49,7 +49,7 @@ func fetchObject(ctx context.Context, bkt *storage.BucketHandle, req Request) er
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("failed to create a file %s, %w", req.Name, err)
+		return fmt.Errorf("failed to create a tmp file %s, %w", req.Name, err)
 	}
 
 	defer func() { _ = closeF(file) }()
@@ -79,7 +79,7 @@ func fetchObject(ctx context.Context, bkt *storage.BucketHandle, req Request) er
 
 	err = os.Rename(fileName, req.FileName)
 	if err != nil {
-		return fmt.Errorf("failed to write a file %s, %w", req.FileName, err)
+		return fmt.Errorf("failed to rename a tmp file %s, %w", req.FileName, err)
 	}
 	return nil
 }

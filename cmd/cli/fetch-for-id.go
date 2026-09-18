@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"path/filepath"
 	"sync"
 
 	"cloud.google.com/go/storage"
@@ -71,7 +72,7 @@ func fetchForId(ctx context.Context, config Config, bkt *storage.BucketHandle, i
 		return
 	}
 
-	err = makeDir(config.Out)
+	err = makeDir(filepath.Join(config.Out, id))
 	if err == context.Canceled {
 		return
 	}
