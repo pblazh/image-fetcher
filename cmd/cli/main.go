@@ -2,14 +2,22 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"os"
 	"os/signal"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 )
 
 func main() {
 	var config Config
-	config.Parse()
+	err := config.Parse()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+		return
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -26,12 +34,18 @@ func main() {
 
 	go ListIds(ctx, idsChan)
 
-	var wg sync.WaitGroup
+	var wg errgroup.Group
 	for range config.IdWorkers {
-		wg.Go(func() {
-			fetchForIds(ctx, config, idsChan)
+		wg.Go(func() error {
+			return fetchForIds(ctx, config, idsChan)
 		})
 	}
 
-	wg.Wait()
+	err = wg.Wait()
+	if err != nil {
+		log.Println(err)
+		os.Exit(2)
+	}
+
+	os.Exit(0)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"path"
 	"sync"
 
 	"cloud.google.com/go/storage"
@@ -14,9 +13,8 @@ import (
 type Request struct {
 	Id   string
 	Name string
-	Out  string
 
-	FileName string // := makeFileName(req.Out, req.Id, req.Name)
+	FileName string
 }
 
 func ListObjects(ctx context.Context, config Config, bkt *storage.BucketHandle, id string, requests chan<- Request) {
@@ -34,33 +32,46 @@ func ListObjects(ctx context.Context, config Config, bkt *storage.BucketHandle, 
 			break
 		}
 
+		fileName, err := makeFileName(config.Out, id, obj.Name)
+		if err != nil {
+			log.Println(fmt.Errorf("rejected unsafe output path, %w", err))
+			continue
+		}
+
 		requests <- Request{
-			Id: id, Name: obj.Name, Out: config.Out,
-			FileName: makeFileName(config.Out, id, obj.Name),
+			Id: id, Name: obj.Name,
+			FileName: fileName,
 		}
 	}
 }
 
-func fetchForIds(ctx context.Context, config Config, ids <-chan string) {
+func fetchForIds(ctx context.Context, config Config, ids <-chan string) error {
 	client, err := storage.NewClient(ctx)
 	if err == context.Canceled {
-		return
+		return nil
 	}
 
 	if err != nil {
-		log.Println(fmt.Errorf("failed to create a client, %w", err))
-		return
+		return fmt.Errorf("failed to create a client, %w", err)
 	}
+	defer func() { _ = client.Close() }()
 
 	bucket := client.Bucket(config.Bucket)
 
 	for id := range ids {
 		fetchForId(ctx, config, bucket, id)
 	}
+	return nil
 }
 
 func fetchForId(ctx context.Context, config Config, bkt *storage.BucketHandle, id string) {
-	err := makeDir(path.Join(config.Out, id))
+	err := validatePathComponent("object id", id)
+	if err != nil {
+		log.Println(fmt.Errorf("rejected unsafe output directory, %w", err))
+		return
+	}
+
+	err = makeDir(config.Out)
 	if err == context.Canceled {
 		return
 	}
